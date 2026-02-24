@@ -1,0 +1,5 @@
+{
+  "name": "Google Maps Webhook Leads",
+  "description": "Recebe dados do Google Maps via Webhook e permite filtrar por Instagram, Site, etc.",
+  "requestFramePermissions": []
+}
