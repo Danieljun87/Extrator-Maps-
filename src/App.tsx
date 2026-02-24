@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2 } from 'lucide-react';
+import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings } from 'lucide-react';
 
 type Lead = {
   id: number;
@@ -8,6 +8,7 @@ type Lead = {
   phone: string;
   website: string;
   instagram: string;
+  image_url: string;
   created_at: string;
   raw_data: string;
 };
@@ -19,6 +20,7 @@ export default function App() {
   const [filter, setFilter] = useState<FilterType>('all');
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [isReceiving, setIsReceiving] = useState(false);
 
   // The webhook URL based on the current app URL
   const webhookUrl = `${window.location.origin}/api/webhook`;
@@ -37,9 +39,24 @@ export default function App() {
 
   useEffect(() => {
     fetchLeads();
-    // Poll every 5 seconds to get new webhook data automatically
-    const interval = setInterval(fetchLeads, 5000);
-    return () => clearInterval(interval);
+    
+    // Connect to SSE for real-time updates
+    const eventSource = new EventSource('/api/stream');
+    
+    eventSource.onmessage = (event) => {
+      const newLead = JSON.parse(event.data);
+      setLeads((prev) => [newLead, ...prev]);
+      
+      // Show receiving animation
+      setIsReceiving(true);
+      setTimeout(() => setIsReceiving(false), 2000);
+    };
+
+    eventSource.addEventListener('clear', () => {
+      setLeads([]);
+    });
+
+    return () => eventSource.close();
   }, []);
 
   const clearLeads = async () => {
@@ -75,16 +92,27 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-blue-500/30">
       <div className="max-w-7xl mx-auto p-6">
         <header className="mb-10 border-b border-blue-900/30 pb-8">
-          <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-            <MapPin className="text-blue-500" size={32} />
-            Google Maps Leads
-          </h1>
-          <p className="text-slate-400 mb-6">
-            Receba e filtre dados do Google Maps via Webhook em tempo real.
-          </p>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
+                <MapPin className="text-blue-500" size={32} />
+                Google Maps Leads
+              </h1>
+              <p className="text-slate-400 mb-6">
+                Receba e filtre dados do Google Maps via Webhook em tempo real.
+              </p>
+            </div>
+            
+            {isReceiving && (
+              <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full border border-blue-500/30 animate-pulse">
+                <Settings className="animate-spin" size={18} />
+                <span className="text-sm font-medium">Recebendo dados...</span>
+              </div>
+            )}
+          </div>
           
           <div className="bg-slate-900 border border-blue-800/50 rounded-xl p-5 shadow-lg shadow-blue-900/10">
-            <h2 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-3">Sua URL de Webhook</h2>
+            <h2 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-3">Sua URL de Webhook (Método POST)</h2>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <code className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-blue-300 font-mono text-sm overflow-x-auto whitespace-nowrap">
                 {webhookUrl}
@@ -160,10 +188,23 @@ export default function App() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredLeads.map(lead => (
-                <div key={lead.id} className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-xl p-5 transition-all group flex flex-col h-full">
-                  <h3 className="text-xl font-bold text-white mb-4 group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
-                  
-                  <div className="space-y-3 text-sm flex-1">
+                <div key={lead.id} className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-xl overflow-hidden transition-all group flex flex-col h-full">
+                  {lead.image_url && (
+                    <div className="w-full h-48 bg-slate-800 relative overflow-hidden">
+                      <img 
+                        src={lead.image_url} 
+                        alt={lead.name} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div className="p-5 flex flex-col flex-1">
+                    <h3 className="text-xl font-bold text-white mb-4 group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
+                    
+                    <div className="space-y-3 text-sm flex-1">
                     {lead.address && (
                       <div className="flex items-start gap-3 text-slate-400">
                         <MapPin size={16} className="mt-0.5 text-blue-500 shrink-0" />
@@ -195,11 +236,12 @@ export default function App() {
                         </a>
                       </div>
                     )}
-                  </div>
-                  
-                  <div className="mt-5 pt-4 border-t border-slate-800 text-xs text-slate-500 flex justify-between items-center">
-                    <span>Recebido em:</span>
-                    <span>{new Date(lead.created_at).toLocaleString('pt-BR')}</span>
+                    </div>
+                    
+                    <div className="mt-5 pt-4 border-t border-slate-800 text-xs text-slate-500 flex justify-between items-center">
+                      <span>Recebido em:</span>
+                      <span>{new Date(lead.created_at).toLocaleString('pt-BR')}</span>
+                    </div>
                   </div>
                 </div>
               ))}
