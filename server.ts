@@ -1,31 +1,12 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
-import Database from "better-sqlite3";
 import cors from "cors";
+import { createClient } from "@supabase/supabase-js";
 
-const db = new Database("data.db");
-
-// Create the table for the leads
-db.exec(`
-  CREATE TABLE IF NOT EXISTS leads (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    address TEXT,
-    phone TEXT,
-    website TEXT,
-    instagram TEXT,
-    image_url TEXT,
-    raw_data TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  )
-`);
-
-// Try to add image_url column if it doesn't exist (for existing DBs)
-try {
-  db.exec("ALTER TABLE leads ADD COLUMN image_url TEXT");
-} catch (e) {
-  // Column already exists, ignore
-}
+// Initialize Supabase client
+const supabaseUrl = process.env.SUPABASE_URL || "";
+const supabaseKey = process.env.SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Store connected SSE clients
 const clients = new Set<express.Response>();
@@ -56,7 +37,7 @@ async function startServer() {
   });
 
   // Webhook endpoint to receive data
-  app.post("/api/webhook", (req, res) => {
+  app.post("/api/webhook", async (req, res) => {
     try {
       const data = req.body;
       
@@ -67,21 +48,28 @@ async function startServer() {
       const website = data.website || data.site || "";
       const instagram = data.instagram || data.ig || "";
       const image_url = data.image_url || data.image || data.photo || data.thumbnail || "";
-      const raw_data = JSON.stringify(data);
+      const raw_data = data; // Supabase uses JSONB
 
-      const stmt = db.prepare(`
-        INSERT INTO leads (name, address, phone, website, instagram, image_url, raw_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `);
-      
-      const info = stmt.run(name, address, phone, website, instagram, image_url, raw_data);
-      
-      // Fetch the newly inserted lead
-      const newLead = db.prepare("SELECT * FROM leads WHERE id = ?").get(info.lastInsertRowid);
+      if (!supabaseUrl || !supabaseKey) {
+        return res.status(500).json({ success: false, error: "Supabase não configurado" });
+      }
 
+      const { data: insertedData, error } = await supabase
+        .from('leads')
+        .insert([
+          { name, address, phone, website, instagram, image_url, raw_data }
+        ])
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Erro no Supabase:", error);
+        throw error;
+      }
+      
       // Notify all connected clients
       for (const client of clients) {
-        client.write(`data: ${JSON.stringify(newLead)}\n\n`);
+        client.write(`data: ${JSON.stringify(insertedData)}\n\n`);
       }
       
       res.status(200).json({ success: true, message: "Dados recebidos com sucesso" });
@@ -92,20 +80,40 @@ async function startServer() {
   });
 
   // API to fetch leads for the frontend
-  app.get("/api/leads", (req, res) => {
+  app.get("/api/leads", async (req, res) => {
     try {
-      const stmt = db.prepare("SELECT * FROM leads ORDER BY created_at DESC");
-      const leads = stmt.all();
-      res.json(leads);
+      if (!supabaseUrl || !supabaseKey) {
+        return res.json([]);
+      }
+
+      const { data: leads, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      res.json(leads || []);
     } catch (error) {
+      console.error("Erro ao buscar dados:", error);
       res.status(500).json({ error: "Erro ao buscar os dados" });
     }
   });
 
   // API to clear all leads
-  app.delete("/api/leads", (req, res) => {
+  app.delete("/api/leads", async (req, res) => {
     try {
-      db.prepare("DELETE FROM leads").run();
+      if (!supabaseUrl || !supabaseKey) {
+        return res.status(500).json({ error: "Supabase não configurado" });
+      }
+
+      // Supabase requires a filter to delete, we delete where id is not null
+      const { error } = await supabase
+        .from('leads')
+        .delete()
+        .not('id', 'is', null);
+
+      if (error) throw error;
       
       // Notify clients to clear
       for (const client of clients) {
@@ -114,6 +122,7 @@ async function startServer() {
 
       res.json({ success: true });
     } catch (error) {
+      console.error("Erro ao limpar dados:", error);
       res.status(500).json({ error: "Erro ao limpar os dados" });
     }
   });
