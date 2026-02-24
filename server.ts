@@ -11,6 +11,18 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 // Store connected SSE clients
 const clients = new Set<express.Response>();
 
+// Store recent logs in memory for the preview environment
+const systemLogs: any[] = [];
+const addLog = (type: 'info' | 'success' | 'error', message: string, details?: any) => {
+  const log = { id: Date.now(), time: new Date().toISOString(), type, message, details };
+  systemLogs.unshift(log);
+  if (systemLogs.length > 50) systemLogs.pop();
+  
+  for (const client of clients) {
+    client.write(`event: log\ndata: ${JSON.stringify(log)}\n\n`);
+  }
+};
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -58,6 +70,8 @@ async function startServer() {
       const env = req.params.env === 'test' ? 'test' : 'production';
       const data = req.body;
       
+      addLog('info', `Recebendo requisição no webhook (${env})`, data);
+      
       // Try to extract common fields from typical Google Maps scrapers
       const name = data.name || data.title || "Desconhecido";
       const address = data.address || data.full_address || "";
@@ -70,6 +84,7 @@ async function startServer() {
       const raw_data = { ...data, _environment: env };
 
       if (!supabaseUrl || !supabaseKey) {
+        addLog('error', 'Supabase não configurado. Verifique os Secrets.');
         return res.status(500).json({ success: false, error: "Supabase não configurado" });
       }
 
@@ -82,9 +97,12 @@ async function startServer() {
         .single();
 
       if (error) {
+        addLog('error', `Erro ao inserir no Supabase: ${error.message}`, error);
         console.error("Erro no Supabase:", error);
         throw error;
       }
+      
+      addLog('success', `Lead "${name}" salvo com sucesso!`, insertedData);
       
       // Notify all connected clients
       for (const client of clients) {
@@ -92,10 +110,16 @@ async function startServer() {
       }
       
       res.status(200).json({ success: true, message: "Dados recebidos com sucesso" });
-    } catch (error) {
+    } catch (error: any) {
+      addLog('error', `Erro interno no webhook: ${error.message}`, error);
       console.error("Erro no Webhook:", error);
       res.status(500).json({ success: false, error: "Erro interno do servidor" });
     }
+  });
+
+  // API to fetch logs
+  app.get("/api/logs", (req, res) => {
+    res.json(systemLogs);
   });
 
   // API to fetch leads for the frontend

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle } from 'lucide-react';
+import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle, Terminal, X } from 'lucide-react';
 
 type Lead = {
   id: number;
@@ -15,6 +15,14 @@ type Lead = {
 
 type FilterType = 'all' | 'with_instagram' | 'without_website' | 'with_website';
 
+type LogEntry = {
+  id: number;
+  time: string;
+  type: 'info' | 'success' | 'error';
+  message: string;
+  details?: any;
+};
+
 export default function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
@@ -22,13 +30,15 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [isReceiving, setIsReceiving] = useState(false);
   const [webhookMode, setWebhookMode] = useState<'test' | 'production'>('test');
+  const [showLogs, setShowLogs] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
 
   // The webhook URL based on the current app URL and mode
   const webhookUrl = `${window.location.origin}/api/webhook${webhookMode === 'test' ? '/test' : ''}`;
 
   const simulateWebhook = async () => {
     try {
-      await fetch(webhookUrl, {
+      const res = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -41,8 +51,24 @@ export default function App() {
           simulated: true
         })
       });
-    } catch (error) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`Erro no webhook: ${data.error || res.statusText}`);
+      }
+    } catch (error: any) {
+      alert(`Erro ao chamar webhook: ${error.message}`);
       console.error("Erro ao simular:", error);
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+      const res = await fetch('/api/logs');
+      if (res.ok) {
+        setLogs(await res.json());
+      }
+    } catch (e) {
+      console.error("Failed to fetch logs");
     }
   };
 
@@ -60,6 +86,7 @@ export default function App() {
 
   useEffect(() => {
     fetchLeads();
+    fetchLogs();
     
     // Connect to SSE for real-time updates
     const eventSource = new EventSource('/api/stream');
@@ -72,6 +99,11 @@ export default function App() {
       setIsReceiving(true);
       setTimeout(() => setIsReceiving(false), 2000);
     };
+
+    eventSource.addEventListener('log', (event) => {
+      const newLog = JSON.parse(event.data);
+      setLogs((prev) => [newLog, ...prev].slice(0, 50));
+    });
 
     eventSource.addEventListener('clear', () => {
       setLeads([]);
@@ -124,12 +156,22 @@ export default function App() {
               </p>
             </div>
             
-            {isReceiving && (
-              <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full border border-blue-500/30 animate-pulse">
-                <Settings className="animate-spin" size={18} />
-                <span className="text-sm font-medium">Recebendo dados...</span>
-              </div>
-            )}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setShowLogs(true)}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition-colors"
+              >
+                <Terminal size={18} />
+                <span className="text-sm font-medium">Ver Logs</span>
+              </button>
+
+              {isReceiving && (
+                <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full border border-blue-500/30 animate-pulse">
+                  <Settings className="animate-spin" size={18} />
+                  <span className="text-sm font-medium">Recebendo dados...</span>
+                </div>
+              )}
+            </div>
           </div>
           
           <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
@@ -304,6 +346,55 @@ export default function App() {
           )}
         </main>
       </div>
+
+      {/* Logs Modal */}
+      {showLogs && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-4xl max-h-[80vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Terminal size={20} className="text-blue-400" />
+                Logs do Webhook
+              </h2>
+              <button 
+                onClick={() => setShowLogs(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 font-mono text-sm">
+              {logs.length === 0 ? (
+                <div className="text-center py-10 text-slate-500">
+                  Nenhum log registrado ainda.
+                </div>
+              ) : (
+                logs.map(log => (
+                  <div key={log.id} className={`p-3 rounded-lg border ${
+                    log.type === 'error' ? 'bg-red-950/30 border-red-900/50 text-red-200' : 
+                    log.type === 'success' ? 'bg-emerald-950/30 border-emerald-900/50 text-emerald-200' : 
+                    'bg-slate-950/50 border-slate-800 text-slate-300'
+                  }`}>
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-bold">[{new Date(log.time).toLocaleTimeString()}] {log.type.toUpperCase()}</span>
+                    </div>
+                    <div className="mb-2">{log.message}</div>
+                    {log.details && (
+                      <pre className="bg-black/40 p-2 rounded text-xs overflow-x-auto text-slate-400">
+                        {JSON.stringify(log.details, null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="p-4 border-t border-slate-800 bg-slate-950/50 text-xs text-slate-500 rounded-b-xl">
+              Os logs são mantidos em memória e apagados ao reiniciar o servidor.
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
