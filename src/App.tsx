@@ -27,6 +27,7 @@ export default function App() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [filter, setFilter] = useState<FilterType>('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [isReceiving, setIsReceiving] = useState(false);
   const [webhookMode, setWebhookMode] = useState<'test' | 'production'>('test');
@@ -65,7 +66,10 @@ export default function App() {
     try {
       const res = await fetch('/api/logs');
       if (res.ok) {
-        setLogs(await res.json());
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setLogs(data);
+        }
       }
     } catch (e) {
       console.error("Failed to fetch logs");
@@ -76,9 +80,17 @@ export default function App() {
     try {
       const res = await fetch('/api/leads');
       const data = await res.json();
-      setLeads(data);
+      if (Array.isArray(data)) {
+        setLeads(data);
+        setError(null);
+      } else {
+        console.error("API did not return an array:", data);
+        setError(data.error || "Erro ao carregar dados do servidor.");
+        setLeads([]);
+      }
     } catch (error) {
       console.error("Failed to fetch leads", error);
+      setError("Falha na conexão com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -92,17 +104,25 @@ export default function App() {
     const eventSource = new EventSource('/api/stream');
     
     eventSource.onmessage = (event) => {
-      const newLead = JSON.parse(event.data);
-      setLeads((prev) => [newLead, ...prev]);
-      
-      // Show receiving animation
-      setIsReceiving(true);
-      setTimeout(() => setIsReceiving(false), 2000);
+      try {
+        const newLead = JSON.parse(event.data);
+        setLeads((prev) => [newLead, ...prev]);
+        
+        // Show receiving animation
+        setIsReceiving(true);
+        setTimeout(() => setIsReceiving(false), 2000);
+      } catch (e) {
+        console.error("Error parsing event data", e);
+      }
     };
 
     eventSource.addEventListener('log', (event) => {
-      const newLog = JSON.parse(event.data);
-      setLogs((prev) => [newLog, ...prev].slice(0, 50));
+      try {
+        const newLog = JSON.parse(event.data);
+        setLogs((prev) => [newLog, ...prev].slice(0, 50));
+      } catch (e) {
+        console.error("Error parsing log data", e);
+      }
     });
 
     eventSource.addEventListener('clear', () => {
@@ -260,6 +280,27 @@ export default function App() {
               Limpar Dados
             </button>
           </div>
+
+          {error && (
+            <div className="mb-8 bg-red-900/20 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
+              <AlertCircle className="text-red-500 mt-0.5 shrink-0" size={20} />
+              <div>
+                <h3 className="text-sm font-medium text-red-400">Erro de Conexão</h3>
+                <p className="text-xs text-red-200/70 mt-1">{error}</p>
+                {error.includes('Supabase credentials') && (
+                  <div className="mt-3">
+                    <p className="text-xs text-red-200/70 mb-2">
+                      Para rodar na Vercel, você precisa adicionar as seguintes variáveis de ambiente (Environment Variables) no painel do seu projeto na Vercel:
+                    </p>
+                    <ul className="list-disc pl-4 text-xs text-red-200/70 space-y-1">
+                      <li><strong>VITE_SUPABASE_URL</strong> ou <strong>SUPABASE_URL</strong></li>
+                      <li><strong>VITE_SUPABASE_ANON_KEY</strong> ou <strong>SUPABASE_ANON_KEY</strong></li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {loading ? (
             <div className="flex justify-center py-20">
