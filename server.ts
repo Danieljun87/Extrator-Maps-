@@ -36,9 +36,26 @@ async function startServer() {
     });
   });
 
-  // Webhook endpoint to receive data
-  app.post("/api/webhook", async (req, res) => {
+  // Status endpoint to check Supabase connection
+  app.get("/api/status", async (req, res) => {
+    if (!supabaseUrl || !supabaseKey) {
+      return res.json({ configured: false, error: "Variáveis SUPABASE_URL e SUPABASE_ANON_KEY não encontradas nos Secrets." });
+    }
     try {
+      const { error } = await supabase.from('leads').select('id').limit(1);
+      if (error) {
+        return res.json({ configured: false, error: `Erro de conexão com a tabela: ${error.message}` });
+      }
+      res.json({ configured: true, message: "Conectado com sucesso!" });
+    } catch (err: any) {
+      res.json({ configured: false, error: err.message });
+    }
+  });
+
+  // Webhook endpoint to receive data (supports /api/webhook and /api/webhook/test)
+  app.post(["/api/webhook", "/api/webhook/:env"], async (req, res) => {
+    try {
+      const env = req.params.env === 'test' ? 'test' : 'production';
       const data = req.body;
       
       // Try to extract common fields from typical Google Maps scrapers
@@ -48,7 +65,9 @@ async function startServer() {
       const website = data.website || data.site || "";
       const instagram = data.instagram || data.ig || "";
       const image_url = data.image_url || data.image || data.photo || data.thumbnail || "";
-      const raw_data = data; // Supabase uses JSONB
+      
+      // Inject environment into raw_data so we don't need to alter the SQL schema
+      const raw_data = { ...data, _environment: env };
 
       if (!supabaseUrl || !supabaseKey) {
         return res.status(500).json({ success: false, error: "Supabase não configurado" });

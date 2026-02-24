@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings } from 'lucide-react';
+import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle } from 'lucide-react';
 
 type Lead = {
   id: number;
@@ -21,9 +21,40 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [isReceiving, setIsReceiving] = useState(false);
+  const [webhookMode, setWebhookMode] = useState<'test' | 'production'>('test');
+  const [dbStatus, setDbStatus] = useState<{configured: boolean, message?: string, error?: string} | null>(null);
 
-  // The webhook URL based on the current app URL
-  const webhookUrl = `${window.location.origin}/api/webhook`;
+  // The webhook URL based on the current app URL and mode
+  const webhookUrl = `${window.location.origin}/api/webhook${webhookMode === 'test' ? '/test' : ''}`;
+
+  const checkDbStatus = async () => {
+    try {
+      const res = await fetch('/api/status');
+      setDbStatus(await res.json());
+    } catch (error) {
+      setDbStatus({ configured: false, error: "Servidor offline ou inacessível." });
+    }
+  };
+
+  const simulateWebhook = async () => {
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: "Local de Teste " + Math.floor(Math.random() * 1000),
+          address: "Rua Fictícia, 123 - Centro",
+          phone: "(11) 99999-9999",
+          website: "https://exemplo.com",
+          instagram: "@exemplo_teste",
+          image_url: `https://picsum.photos/seed/${Math.random()}/400/300`,
+          simulated: true
+        })
+      });
+    } catch (error) {
+      console.error("Erro ao simular:", error);
+    }
+  };
 
   const fetchLeads = async () => {
     try {
@@ -38,6 +69,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    checkDbStatus();
     fetchLeads();
     
     // Connect to SSE for real-time updates
@@ -111,15 +143,42 @@ export default function App() {
             )}
           </div>
           
-          <div className="bg-slate-900 border border-blue-800/50 rounded-xl p-5 shadow-lg shadow-blue-900/10">
-            <h2 className="text-sm font-semibold text-blue-400 uppercase tracking-wider mb-3">Sua URL de Webhook (Método POST)</h2>
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 shadow-lg">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-4">
+              <div className="flex bg-slate-950 p-1 rounded-lg border border-slate-800">
+                <button 
+                  onClick={() => setWebhookMode('test')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${webhookMode === 'test' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Activity size={16} />
+                  URL de Teste
+                </button>
+                <button 
+                  onClick={() => setWebhookMode('production')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${webhookMode === 'production' ? 'bg-emerald-600 text-white' : 'text-slate-400 hover:text-white'}`}
+                >
+                  <Server size={16} />
+                  URL de Produção
+                </button>
+              </div>
+              
+              <button 
+                onClick={simulateWebhook}
+                className="text-sm bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 border border-slate-700"
+              >
+                <Play size={14} />
+                Simular Envio
+              </button>
+            </div>
+
+            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">Sua URL de Webhook (Método POST)</h2>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
               <code className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-blue-300 font-mono text-sm overflow-x-auto whitespace-nowrap">
                 {webhookUrl}
               </code>
               <button 
                 onClick={copyWebhook}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap"
+                className={`${webhookMode === 'test' ? 'bg-blue-600 hover:bg-blue-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 whitespace-nowrap`}
               >
                 {copied ? <CheckCircle2 size={18} /> : <Copy size={18} />}
                 {copied ? 'Copiado!' : 'Copiar URL'}
@@ -130,27 +189,42 @@ export default function App() {
             </p>
           </div>
 
-          {!loading && leads.length === 0 && (
-            <div className="mt-6 bg-amber-900/20 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
-              <div className="text-amber-500 mt-0.5">⚠️</div>
-              <div>
-                <h3 className="text-sm font-medium text-amber-400">Atenção: Configuração do Supabase</h3>
-                <p className="text-xs text-amber-200/70 mt-1">
-                  Para que os dados sejam salvos, você precisa configurar as variáveis <strong>SUPABASE_URL</strong> e <strong>SUPABASE_ANON_KEY</strong> no painel de Secrets (cadeado). Use o seguinte código SQL no seu Supabase para criar a tabela:
+          {dbStatus && (
+            <div className={`mt-6 border rounded-xl p-4 flex items-start gap-3 ${dbStatus.configured ? 'bg-emerald-900/20 border-emerald-500/30' : 'bg-amber-900/20 border-amber-500/30'}`}>
+              <div className="mt-0.5">
+                {dbStatus.configured ? <CheckCircle className="text-emerald-500" size={20} /> : <AlertCircle className="text-amber-500" size={20} />}
+              </div>
+              <div className="flex-1">
+                <h3 className={`text-sm font-medium ${dbStatus.configured ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  Status do Banco de Dados: {dbStatus.configured ? 'Conectado' : 'Não Configurado ou Erro'}
+                </h3>
+                <p className={`text-xs mt-1 ${dbStatus.configured ? 'text-emerald-200/70' : 'text-amber-200/70'}`}>
+                  {dbStatus.configured 
+                    ? "O Supabase está conectado e pronto para receber dados." 
+                    : dbStatus.error}
                 </p>
-                <code className="block mt-2 bg-black/30 p-2 rounded text-xs text-amber-100/60 font-mono">
-                  CREATE TABLE leads (<br/>
-                  &nbsp;&nbsp;id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,<br/>
-                  &nbsp;&nbsp;name TEXT,<br/>
-                  &nbsp;&nbsp;address TEXT,<br/>
-                  &nbsp;&nbsp;phone TEXT,<br/>
-                  &nbsp;&nbsp;website TEXT,<br/>
-                  &nbsp;&nbsp;instagram TEXT,<br/>
-                  &nbsp;&nbsp;image_url TEXT,<br/>
-                  &nbsp;&nbsp;raw_data JSONB,<br/>
-                  &nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL<br/>
-                  );
-                </code>
+                
+                {!dbStatus.configured && (
+                  <div className="mt-3">
+                    <p className="text-xs text-amber-200/70 mb-2">
+                      1. Adicione <strong>SUPABASE_URL</strong> e <strong>SUPABASE_ANON_KEY</strong> no painel de Secrets (cadeado).<br/>
+                      2. Rode este SQL no seu Supabase:
+                    </p>
+                    <code className="block bg-black/30 p-2 rounded text-xs text-amber-100/60 font-mono overflow-x-auto">
+                      CREATE TABLE leads (<br/>
+                      &nbsp;&nbsp;id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,<br/>
+                      &nbsp;&nbsp;name TEXT,<br/>
+                      &nbsp;&nbsp;address TEXT,<br/>
+                      &nbsp;&nbsp;phone TEXT,<br/>
+                      &nbsp;&nbsp;website TEXT,<br/>
+                      &nbsp;&nbsp;instagram TEXT,<br/>
+                      &nbsp;&nbsp;image_url TEXT,<br/>
+                      &nbsp;&nbsp;raw_data JSONB,<br/>
+                      &nbsp;&nbsp;created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL<br/>
+                      );
+                    </code>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -206,7 +280,7 @@ export default function App() {
               <h3 className="text-lg font-medium text-slate-300 mb-1">Nenhum dado encontrado</h3>
               <p className="text-slate-500">
                 {leads.length === 0 
-                  ? "Aguardando informações do webhook... Envie dados para a URL acima." 
+                  ? (dbStatus?.configured ? "Banco conectado! Aguardando o envio dos dados via Webhook..." : "Configure o banco de dados para começar a receber informações.")
                   : "Nenhum resultado para o filtro selecionado."}
               </p>
             </div>
@@ -227,7 +301,14 @@ export default function App() {
                     </div>
                   )}
                   <div className="p-5 flex flex-col flex-1">
-                    <h3 className="text-xl font-bold text-white mb-4 group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
+                    <div className="flex justify-between items-start gap-2 mb-4">
+                      <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
+                      {lead.raw_data && typeof lead.raw_data === 'object' && (lead.raw_data as any)._environment === 'test' && (
+                        <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30 shrink-0">
+                          Teste
+                        </span>
+                      )}
+                    </div>
                     
                     <div className="space-y-3 text-sm flex-1">
                     {lead.address && (
