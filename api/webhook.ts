@@ -79,7 +79,7 @@ export default async function handler(req: any, res: any) {
 
     const recordsToInsert = itemsToProcess.map((item: any) => {
       const name = item.nome_empresa || item.name || item.title || "Desconhecido";
-      const adress = item.endereco || item.address || item.full_address || "";
+      const address = item.endereco || item.address || item.full_address || "";
       const phone = item.telefone || item.phone || item.phone_number || "";
       const website = item.website || item.site || "";
       const rating = item.rating || "";
