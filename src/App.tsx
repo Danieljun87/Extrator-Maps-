@@ -452,9 +452,31 @@ export default function App() {
                     )}
                     
                     {lead.phone && (
-                      <div className="flex items-center gap-3 text-slate-400">
+                      <div className="flex items-center gap-3 text-slate-400 group/phone">
                         <Phone size={16} className="text-blue-500 shrink-0" />
-                        <span>{lead.phone}</span>
+                        <a 
+                          href={`tel:${lead.phone.replace(/\D/g, '')}`} 
+                          className="hover:text-blue-400 hover:underline transition-colors"
+                          title="Ligar para o número"
+                        >
+                          {lead.phone}
+                        </a>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigator.clipboard.writeText(lead.phone);
+                            const btn = e.currentTarget;
+                            const originalHtml = btn.innerHTML;
+                            btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><path d="M20 6 9 17l-5-5"/></svg>';
+                            setTimeout(() => {
+                              btn.innerHTML = originalHtml;
+                            }, 2000);
+                          }}
+                          className="opacity-0 group-hover/phone:opacity-100 text-slate-500 hover:text-blue-400 transition-all p-1"
+                          title="Copiar número"
+                        >
+                          <Copy size={14} />
+                        </button>
                       </div>
                     )}
                     
