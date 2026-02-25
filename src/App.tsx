@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle, Terminal, X } from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle, Terminal, X, Star } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 type Lead = {
   id: number;
@@ -17,7 +18,7 @@ type Lead = {
   raw_data: string;
 };
 
-type FilterType = 'all' | 'with_phone' | 'without_website' | 'with_website' | 'with_rating' | 'with_especialidades';
+type FilterType = 'all' | 'with_phone' | 'only_instagram' | 'rating_4_5_plus' | 'without_website';
 
 type LogEntry = {
   id: number;
@@ -37,6 +38,12 @@ export default function App() {
   const [webhookMode, setWebhookMode] = useState<'test' | 'production'>('test');
   const [showLogs, setShowLogs] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isWebhookEnabled, setIsWebhookEnabled] = useState(true);
+  const isWebhookEnabledRef = useRef(isWebhookEnabled);
+
+  useEffect(() => {
+    isWebhookEnabledRef.current = isWebhookEnabled;
+  }, [isWebhookEnabled]);
 
   // The webhook URL based on the current app URL and mode
   const webhookUrl = `${window.location.origin}/api/webhook${webhookMode === 'test' ? '/test' : ''}`;
@@ -109,6 +116,8 @@ export default function App() {
     
     eventSource.onmessage = (event) => {
       try {
+        if (!isWebhookEnabledRef.current) return;
+        
         const newLead = JSON.parse(event.data);
         setLeads((prev) => [newLead, ...prev]);
         
@@ -156,17 +165,18 @@ export default function App() {
     if (filter === 'with_phone') {
       return lead.phone && lead.phone.trim() !== '';
     }
+    if (filter === 'only_instagram') {
+      const hasInsta = lead.instagram && lead.instagram.trim() !== '';
+      const siteIsInsta = lead.website && lead.website.toLowerCase().includes('instagram.com');
+      return hasInsta || siteIsInsta;
+    }
     if (filter === 'without_website') {
       return !lead.website || lead.website.trim() === '';
     }
-    if (filter === 'with_website') {
-      return lead.website && lead.website.trim() !== '';
-    }
-    if (filter === 'with_rating') {
-      return lead.rating && lead.rating.trim() !== '';
-    }
-    if (filter === 'with_especialidades') {
-      return lead.especialidades && lead.especialidades.trim() !== '';
+    if (filter === 'rating_4_5_plus') {
+      if (!lead.rating) return false;
+      const numericRating = parseFloat(lead.rating.replace(',', '.'));
+      return !isNaN(numericRating) && numericRating >= 4.5;
     }
     return true;
   });
@@ -187,18 +197,30 @@ export default function App() {
             </div>
             
             <div className="flex items-center gap-3">
-              <button
-                onClick={() => setShowLogs(true)}
-                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg border border-slate-700 transition-colors"
-              >
-                <Terminal size={18} />
-                <span className="text-sm font-medium">Ver Logs</span>
-              </button>
+              <div className="flex items-center gap-2 bg-slate-800 px-3 py-2 rounded-lg border border-slate-700">
+                <span className="text-sm font-medium text-slate-300 hidden sm:inline">Webhook</span>
+                <button 
+                  onClick={() => setIsWebhookEnabled(!isWebhookEnabled)}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${isWebhookEnabled ? 'bg-blue-500' : 'bg-slate-600'}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${isWebhookEnabled ? 'translate-x-4' : 'translate-x-1'}`} />
+                </button>
+              </div>
 
-              {isReceiving && (
-                <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full border border-blue-500/30 animate-pulse">
+              {!isWebhookEnabled ? (
+                <div className="flex items-center gap-2 bg-slate-800/80 text-slate-400 px-4 py-2 rounded-full border border-slate-700">
+                  <div className="w-2 h-2 rounded-full bg-slate-500"></div>
+                  <span className="text-sm font-medium">Desativado</span>
+                </div>
+              ) : isReceiving ? (
+                <div className="flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-full border border-emerald-500/30">
+                  <CheckCircle2 size={18} />
+                  <span className="text-sm font-medium">Dados recebidos!</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 bg-blue-500/20 text-blue-400 px-4 py-2 rounded-full border border-blue-500/30">
                   <Settings className="animate-spin" size={18} />
-                  <span className="text-sm font-medium">Recebendo dados...</span>
+                  <span className="text-sm font-medium">Aguardando dados...</span>
                 </div>
               )}
             </div>
@@ -268,30 +290,25 @@ export default function App() {
                 Com Telefone
               </button>
               <button
-                onClick={() => setFilter('with_website')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_website' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+                onClick={() => setFilter('only_instagram')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'only_instagram' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
               >
-                <Globe size={16} />
-                Com Site
+                <Instagram size={16} />
+                Só Instagram
               </button>
               <button
                 onClick={() => setFilter('without_website')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'without_website' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
               >
+                <Globe size={16} />
                 Sem Site
               </button>
               <button
-                onClick={() => setFilter('with_rating')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_rating' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+                onClick={() => setFilter('rating_4_5_plus')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'rating_4_5_plus' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
               >
-                Com Avaliação
-              </button>
-              <button
-                onClick={() => setFilter('with_especialidades')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_especialidades' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
-              >
-                <CheckCircle size={16} />
-                Com Especialidades
+                <Star size={16} />
+                Avaliação 4.5+
               </button>
             </div>
 
@@ -340,10 +357,22 @@ export default function App() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredLeads.map(lead => (
-                <div key={lead.id} className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-xl overflow-hidden transition-all group flex flex-col h-full">
-                  {lead.image_url && (
+            <motion.div 
+              layout
+              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+            >
+              <AnimatePresence>
+                {filteredLeads.map(lead => (
+                  <motion.div 
+                    layout
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    transition={{ duration: 0.3 }}
+                    key={lead.id} 
+                    className="bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-xl overflow-hidden transition-all group flex flex-col h-full"
+                  >
+                    {lead.image_url && (
                     <div className="w-full h-48 bg-slate-800 relative overflow-hidden">
                       <img 
                         src={lead.image_url} 
@@ -419,9 +448,10 @@ export default function App() {
                       <span>{new Date(lead.created_at).toLocaleString('pt-BR')}</span>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))}
-            </div>
+              </AnimatePresence>
+            </motion.div>
           )}
         </main>
       </div>
