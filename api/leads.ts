@@ -20,9 +20,17 @@ export default async function handler(req: any, res: any) {
   }
 
   if (req.method === 'DELETE') {
-    const { error } = await supabase.from('leads').delete().neq('id', 0);
-    if (error) return res.status(500).json({ error: error.message });
-    return res.status(200).json({ success: true });
+    const { id } = req.query;
+    
+    if (id) {
+      const { error } = await supabase.from('leads').delete().eq('id', id);
+      if (error) return res.status(500).json({ error: error.message });
+      return res.status(200).json({ success: true });
+    } else {
+      const { error } = await supabase.from('leads').delete().neq('id', 0);
+      if (error) return res.status(500).json({ error: error.message });
+      return res.status(200).json({ success: true });
+    }
   }
 
   return res.status(405).json({ error: 'Method not allowed' });

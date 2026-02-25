@@ -155,6 +155,21 @@ export default function App() {
     }
   };
 
+  const deleteLead = async (id: number) => {
+    if (!confirm('Tem certeza que deseja apagar este contato?')) return;
+    try {
+      const res = await fetch(`/api/leads?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setLeads(prev => prev.filter(lead => lead.id !== id));
+      } else {
+        alert('Erro ao apagar contato.');
+      }
+    } catch (error) {
+      console.error("Failed to delete lead", error);
+      alert('Erro ao apagar contato.');
+    }
+  };
+
   const copyWebhook = () => {
     navigator.clipboard.writeText(webhookUrl);
     setCopied(true);
@@ -405,11 +420,20 @@ export default function App() {
                           </div>
                         )}
                       </div>
-                      {lead.raw_data && typeof lead.raw_data === 'object' && (lead.raw_data as any)._environment === 'test' && (
-                        <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30 shrink-0">
-                          Teste
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {lead.raw_data && typeof lead.raw_data === 'object' && (lead.raw_data as any)._environment === 'test' && (
+                          <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30 shrink-0">
+                            Teste
+                          </span>
+                        )}
+                        <button
+                          onClick={() => deleteLead(lead.id)}
+                          className="text-slate-500 hover:text-red-400 hover:bg-red-400/10 p-1.5 rounded-lg transition-colors shrink-0"
+                          title="Apagar contato"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
                     
                     <div className="space-y-3 text-sm flex-1">
