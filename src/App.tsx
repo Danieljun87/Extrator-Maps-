@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle, Terminal, X, Star } from 'lucide-react';
+import { MapPin, Phone, Instagram, Globe, Trash2, Copy, CheckCircle2, Settings, Activity, Server, Play, AlertCircle, CheckCircle, Terminal, X, Star, MessageCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 type Lead = {
@@ -18,7 +18,7 @@ type Lead = {
   raw_data: string;
 };
 
-type FilterType = 'all' | 'with_phone' | 'only_instagram' | 'rating_4_5_plus' | 'without_website';
+type FilterType = 'all' | 'with_phone' | 'only_instagram' | 'only_whatsapp' | 'rating_4_5_plus' | 'without_website';
 
 type LogEntry = {
   id: number;
@@ -170,6 +170,9 @@ export default function App() {
       const siteIsInsta = lead.website && lead.website.toLowerCase().includes('instagram.com');
       return hasInsta || siteIsInsta;
     }
+    if (filter === 'only_whatsapp') {
+      return lead.website && (lead.website.toLowerCase().includes('api.whatsapp.com') || lead.website.toLowerCase().includes('wa.me'));
+    }
     if (filter === 'without_website') {
       return !lead.website || lead.website.trim() === '';
     }
@@ -295,6 +298,13 @@ export default function App() {
               >
                 <Instagram size={16} />
                 Só Instagram
+              </button>
+              <button
+                onClick={() => setFilter('only_whatsapp')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'only_whatsapp' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+              >
+                <MessageCircle size={16} />
+                Só WhatsApp
               </button>
               <button
                 onClick={() => setFilter('without_website')}
