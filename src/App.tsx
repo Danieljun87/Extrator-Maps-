@@ -9,6 +9,10 @@ type Lead = {
   website: string;
   instagram: string;
   image_url: string;
+  rating?: string;
+  reviews?: string;
+  especialidades?: string;
+  idx?: string;
   created_at: string;
   raw_data: string;
 };
@@ -334,7 +338,15 @@ export default function App() {
                   )}
                   <div className="p-5 flex flex-col flex-1">
                     <div className="flex justify-between items-start gap-2 mb-4">
-                      <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
+                      <div>
+                        <h3 className="text-xl font-bold text-white group-hover:text-blue-400 transition-colors line-clamp-2">{lead.name}</h3>
+                        {lead.rating && (
+                          <div className="flex items-center gap-1 mt-1">
+                            <span className="text-yellow-400 text-sm font-bold">★ {lead.rating}</span>
+                            {lead.reviews && <span className="text-slate-500 text-xs">({lead.reviews} avaliações)</span>}
+                          </div>
+                        )}
+                      </div>
                       {lead.raw_data && typeof lead.raw_data === 'object' && (lead.raw_data as any)._environment === 'test' && (
                         <span className="bg-blue-500/20 text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border border-blue-500/30 shrink-0">
                           Teste
@@ -343,6 +355,13 @@ export default function App() {
                     </div>
                     
                     <div className="space-y-3 text-sm flex-1">
+                    {lead.especialidades && (
+                      <div className="flex items-start gap-3 text-slate-400">
+                        <CheckCircle size={16} className="mt-0.5 text-emerald-500 shrink-0" />
+                        <span className="line-clamp-2 text-emerald-400/80 italic">{lead.especialidades}</span>
+                      </div>
+                    )}
+                    
                     {lead.address && (
                       <div className="flex items-start gap-3 text-slate-400">
                         <MapPin size={16} className="mt-0.5 text-blue-500 shrink-0" />
