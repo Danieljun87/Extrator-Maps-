@@ -72,29 +72,43 @@ async function startServer() {
       
       addLog('info', `Recebendo requisição no webhook (${env})`, data);
       
-      // Try to extract common fields from typical Google Maps scrapers
-      const name = data.name || data.title || "Desconhecido";
-      const address = data.address || data.full_address || "";
-      const phone = data.phone || data.phone_number || "";
-      const website = data.website || data.site || "";
-      const instagram = data.instagram || data.ig || "";
-      const image_url = data.image_url || data.image || data.photo || data.thumbnail || "";
-      
-      // Inject environment into raw_data so we don't need to alter the SQL schema
-      const raw_data = { ...data, _environment: env };
+      let itemsToProcess: any[] = [];
+      if (Array.isArray(data)) {
+        itemsToProcess = data;
+      } else if (typeof data === 'object' && data !== null) {
+        if (data.nome_empresa || data.name || data.title) {
+          itemsToProcess = [data];
+        } else {
+          itemsToProcess = Object.values(data).filter(item => typeof item === 'object' && item !== null);
+          if (itemsToProcess.length === 0) {
+            itemsToProcess = [data];
+          }
+        }
+      } else {
+        itemsToProcess = [{ raw: data }];
+      }
 
       if (!supabaseUrl || !supabaseKey) {
         addLog('error', 'Supabase não configurado. Verifique os Secrets.');
         return res.status(500).json({ success: false, error: "Supabase não configurado" });
       }
 
+      const recordsToInsert = itemsToProcess.map((item: any) => {
+        const name = item.nome_empresa || item.name || item.title || "Desconhecido";
+        const address = item.endereco || item.address || item.full_address || "";
+        const phone = item.telefone || item.phone || item.phone_number || "";
+        const website = item.website || item.site || "";
+        const instagram = item.instagram || item.ig || "";
+        const image_url = item.image_url || item.image || item.photo || item.thumbnail || "";
+        const raw_data = { ...item, _environment: env };
+        
+        return { name, address, phone, website, instagram, image_url, raw_data };
+      });
+
       const { data: insertedData, error } = await supabase
         .from('leads')
-        .insert([
-          { name, address, phone, website, instagram, image_url, raw_data }
-        ])
-        .select()
-        .single();
+        .insert(recordsToInsert)
+        .select();
 
       if (error) {
         addLog('error', `Erro ao inserir no Supabase: ${error.message}`, error);
@@ -102,11 +116,15 @@ async function startServer() {
         throw error;
       }
       
-      addLog('success', `Lead "${name}" salvo com sucesso!`, insertedData);
+      addLog('success', `${insertedData?.length || 0} leads salvos com sucesso!`, insertedData);
       
       // Notify all connected clients
       for (const client of clients) {
-        client.write(`data: ${JSON.stringify(insertedData)}\n\n`);
+        if (insertedData) {
+          insertedData.forEach(lead => {
+            client.write(`data: ${JSON.stringify(lead)}\n\n`);
+          });
+        }
       }
       
       res.status(200).json({ success: true, message: "Dados recebidos com sucesso" });

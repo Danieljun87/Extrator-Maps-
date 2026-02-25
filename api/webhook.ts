@@ -60,19 +60,39 @@ export default async function handler(req: any, res: any) {
     console.log('Data parseada:', JSON.stringify(data));
 
     const env = req.query?.env === 'test' ? 'test' : 'production';
-    const name = data.name || data.title || "Desconhecido";
-    const address = data.address || data.full_address || "";
-    const phone = data.phone || data.phone_number || "";
-    const website = data.website || data.site || "";
-    const instagram = data.instagram || data.ig || "";
-    const image_url = data.image_url || data.image || data.photo || data.thumbnail || "";
-    const raw_data = { ...data, _environment: env };
+    
+    let itemsToProcess: any[] = [];
+    if (Array.isArray(data)) {
+      itemsToProcess = data;
+    } else if (typeof data === 'object' && data !== null) {
+      if (data.nome_empresa || data.name || data.title) {
+        itemsToProcess = [data];
+      } else {
+        itemsToProcess = Object.values(data).filter(item => typeof item === 'object' && item !== null);
+        if (itemsToProcess.length === 0) {
+          itemsToProcess = [data];
+        }
+      }
+    } else {
+      itemsToProcess = [{ raw: data }];
+    }
+
+    const recordsToInsert = itemsToProcess.map((item: any) => {
+      const name = item.nome_empresa || item.name || item.title || "Desconhecido";
+      const address = item.endereco || item.address || item.full_address || "";
+      const phone = item.telefone || item.phone || item.phone_number || "";
+      const website = item.website || item.site || "";
+      const instagram = item.instagram || item.ig || "";
+      const image_url = item.image_url || item.image || item.photo || item.thumbnail || "";
+      const raw_data = { ...item, _environment: env };
+      
+      return { name, address, phone, website, instagram, image_url, raw_data };
+    });
 
     const { data: insertedData, error } = await supabase
       .from('leads')
-      .insert([{ name, address, phone, website, instagram, image_url, raw_data }])
-      .select()
-      .single();
+      .insert(recordsToInsert)
+      .select();
 
     if (error) {
       console.error('Supabase error:', JSON.stringify(error));
