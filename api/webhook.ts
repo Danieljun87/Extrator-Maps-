@@ -88,7 +88,7 @@ export default async function handler(req: any, res: any) {
       const idx = item.idx || item.id || "";
       const raw_data = { ...item, _environment: env };
       
-      return { name, address, phone, website, instagram, image_url, rating, reviews, especialidades, idx, raw_data };
+      return { name, address, phone, website, rating, reviews, especialidades, idx, raw_data };
     });
 
     const { data: insertedData, error } = await supabase
