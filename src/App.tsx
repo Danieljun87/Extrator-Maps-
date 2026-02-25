@@ -17,7 +17,7 @@ type Lead = {
   raw_data: string;
 };
 
-type FilterType = 'all' | 'with_instagram' | 'without_website' | 'with_website';
+type FilterType = 'all' | 'with_phone' | 'without_website' | 'with_website' | 'with_rating' | 'with_especialidades';
 
 type LogEntry = {
   id: number;
@@ -153,14 +153,20 @@ export default function App() {
   };
 
   const filteredLeads = leads.filter(lead => {
-    if (filter === 'with_instagram') {
-      return lead.instagram && lead.instagram.trim() !== '';
+    if (filter === 'with_phone') {
+      return lead.phone && lead.phone.trim() !== '';
     }
     if (filter === 'without_website') {
       return !lead.website || lead.website.trim() === '';
     }
     if (filter === 'with_website') {
       return lead.website && lead.website.trim() !== '';
+    }
+    if (filter === 'with_rating') {
+      return lead.rating && lead.rating.trim() !== '';
+    }
+    if (filter === 'with_especialidades') {
+      return lead.especialidades && lead.especialidades.trim() !== '';
     }
     return true;
   });
@@ -240,7 +246,7 @@ export default function App() {
               </button>
             </div>
             <p className="text-xs text-slate-500 mt-3">
-              Configure sua ferramenta para enviar um POST para esta URL. Campos suportados: <code className="text-slate-400">name, address, phone, website, instagram, image_url</code>.
+              Configure sua ferramenta para enviar um POST para esta URL. Campos suportados: <code className="text-slate-400">nome_empresa, endereco, telefone, website, rating, reviews, especialidades, idx</code>.
             </p>
           </div>
         </header>
@@ -255,11 +261,11 @@ export default function App() {
                 Todos
               </button>
               <button
-                onClick={() => setFilter('with_instagram')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_instagram' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+                onClick={() => setFilter('with_phone')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_phone' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
               >
-                <Instagram size={16} />
-                Com Instagram
+                <Phone size={16} />
+                Com Telefone
               </button>
               <button
                 onClick={() => setFilter('with_website')}
@@ -273,6 +279,19 @@ export default function App() {
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'without_website' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
               >
                 Sem Site
+              </button>
+              <button
+                onClick={() => setFilter('with_rating')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_rating' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+              >
+                Com Avaliação
+              </button>
+              <button
+                onClick={() => setFilter('with_especialidades')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${filter === 'with_especialidades' ? 'bg-blue-600 text-white shadow-md shadow-blue-900/20' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'}`}
+              >
+                <CheckCircle size={16} />
+                Com Especialidades
               </button>
             </div>
 

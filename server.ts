@@ -79,7 +79,16 @@ async function startServer() {
         if (data.nome_empresa || data.name || data.title) {
           itemsToProcess = [data];
         } else {
-          itemsToProcess = Object.values(data).filter(item => typeof item === 'object' && item !== null);
+          // Tenta extrair os valores, caso sejam strings JSON (ex: "0": "{\"nome_empresa\":...}")
+          const values = Object.values(data).map(v => {
+            if (typeof v === 'string') {
+              try { return JSON.parse(v); } catch (e) { return v; }
+            }
+            return v;
+          });
+          
+          itemsToProcess = values.filter(item => typeof item === 'object' && item !== null);
+          
           if (itemsToProcess.length === 0) {
             itemsToProcess = [data];
           }
@@ -93,18 +102,21 @@ async function startServer() {
         return res.status(500).json({ success: false, error: "Supabase não configurado" });
       }
 
-      const recordsToInsert = itemsToProcess.map((item: any) => {
+      const recordsToInsert = itemsToProcess.map((rawItem: any) => {
+        // Se o item estiver aninhado dentro de outra propriedade
+        const item = rawItem.data ? { ...rawItem, ...rawItem.data } : rawItem;
+        
         const name = item.nome_empresa || item.name || item.title || "Desconhecido";
         const address = item.endereco || item.address || item.full_address || "";
         const phone = item.telefone || item.phone || item.phone_number || "";
         const website = item.website || item.site || "";
         const instagram = item.instagram || item.ig || "";
         const image_url = item.image_url || item.image || item.photo || item.thumbnail || "";
-        const rating = item.rating || "";
-        const reviews = item.reviews || "";
-        const especialidades = item.especialidades || "";
+        const rating = item.rating || item.nota || "";
+        const reviews = item.reviews || item.avaliacoes || "";
+        const especialidades = item.especialidades || item.categories || "";
         const idx = item.idx || item.id || "";
-        const raw_data = { ...item, _environment: env };
+        const raw_data = { ...rawItem, _environment: env };
         
         return { name, address, phone, website, instagram, image_url, rating, reviews, especialidades, idx, raw_data };
       });
